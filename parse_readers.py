@@ -4,7 +4,6 @@ from typing import Callable
 import pandas as pd
 import inspect
 
-
 def extract_function_data(function: Callable) -> dict:
     """Return function docstring and parameters info."""
     docstring = dedent(function.__doc__)
@@ -77,6 +76,8 @@ def extract_parameter_descriptions(docstring: str) -> dict:
     return parameter_descriptions
 
 
+# PARSE
+
 pandas_reader_functions = {
     function_name: getattr(pd, function_name) 
     for function_name in dir(pd)
@@ -120,75 +121,29 @@ df_parameters = pd.merge(
     how='inner'
 )
 
-# {
-#     k: v.get('parameters_data').get('chunksize') 
-#     for k, v in functions_data.items() 
-#     if v.get('parameters_data').get('chunksize')
-# }
-
-# parameters_vs_functions = (
-#     pd.DataFrame(
-#         [
-#             (function_name, list(data['parameters_data'].keys()))
-#             for function_name, data in functions_data.items()
-#         ],
-#         columns=['function_name', 'parameter_name']
-#     )
-#     .explode('parameter_name')
-#     .assign(dummy=1)
-#     .set_index(['parameter_name','function_name'])['dummy']
-#     .unstack()
-#     .fillna(0)
-#     .astype('int')
-# )
+df_parameters.to_csv('reader_function_parameters.csv', index=False)
 
 
-# reader_functions = {x: getattr(pd, x) for x in public_reader_function_names}
-# reader_signatures = {x: inspect.signature(x) for x in reader_functions}
-# reader_parameters = {k: v.parameters for k, v in reader_signatures.items()}
+# INVESTIGATE
 
+shared_descriptions = df_parameters.groupby(['parameter_name', 'description'])['function_name'].agg(set)
 
-# READER_FUNCTION_NAMES_FROM_GREP = {
-#     "read_array",
-#     "read_clipboard",
-#     "read_column",
-#     "read_coordinates",
-#     "read_csv",
-#     "read_csv_check_warnings",
-#     "read_data",
-#     "read_dta",
-#     "read_excel",
-#     "read_ext",
-#     "read_ext_xlrd",
-#     "read_feather",
-#     "read_fwf",
-#     "read_gbq",
-#     "read_hdf",
-#     "read_html",
-#     "read_index",
-#     "read_index_node",
-#     "read_json",
-#     "read_metadata",
-#     "read_multi_index",
-#     "read_orc",
-#     "read_parquet",
-#     "read_pickle",
-#     "read_query",
-#     "read_sas",
-#     "read_spss",
-#     "read_sql",
-#     "read_sql_query",
-#     "read_sql_table",
-#     "read_stata",
-#     "read_table",
-#     "read_table_check_warnings",
-#     "read_xml",
-#     "read_xml_iterparse",
-#     "read_xml_iterparse_comp",
-# }
+shared_annotations = df_parameters.groupby(['parameter_name', 'annotation'])['function_name'].agg(set)
 
+shared_annotations_and_descrips = (
+    df_parameters
+    .groupby(['parameter_name', 'annotation', 'description'])
+    ['function_name']
+    .agg(set)
+)
 
-# private_readers = list(
-#     set(READER_FUNCTION_NAMES_FROM_GREP).difference(public_readers)
-# )
-
+num_functions = (
+    df_parameters
+    .groupby('parameter_name')
+    ['function_name']
+    .agg(set)
+    .reset_index()
+    .assign(num_functions=lambda t: t.function_name.str.len())
+    .sort_values(['num_functions', 'parameter_name'], ascending=[False, True])
+    .reset_index(drop=True)
+)
